@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Elang Senja — Flight Game</title>
+<link rel="icon" href="data:,">
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #1c2b39; font-family: "Segoe UI", system-ui, -apple-system, sans-serif; }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  #hud { position: fixed; inset: 0; pointer-events: none; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.7); }
+  .panel { background: rgba(8, 20, 30, .55); border: 1px solid rgba(255,255,255,.25); border-radius: 10px; padding: 8px 12px; backdrop-filter: blur(2px); }
+  .label { font-size: 10px; letter-spacing: .14em; opacity: .8; }
+  .value { font-size: 26px; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
+  .unit { font-size: 11px; opacity: .8; font-weight: 400; }
+  #hud-left { position: absolute; top: 14px; left: 14px; display: flex; flex-direction: column; gap: 8px; }
+  #hud-left .panel { min-width: 148px; }
+  #hud-right { position: absolute; top: 14px; right: 14px; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+  #hud-right .panel { min-width: 190px; text-align: right; }
+  .bar { height: 10px; border-radius: 5px; background: rgba(255,255,255,.22); overflow: hidden; margin-top: 4px; }
+  .bar > div { height: 100%; border-radius: 5px; }
+  #throttle-fill { background: #ffb347; width: 55%; }
+  #fuel-fill { background: #7ee081; width: 100%; }
+  #fuel-fill.low { background: #ff6b5e; }
+  #compass { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); width: 340px; text-align: center; }
+  #compass-tape { font-size: 15px; letter-spacing: .35em; font-weight: 600; white-space: nowrap; overflow: hidden; }
+  #compass-tape .cardinal { color: #ffd27a; }
+  #compass-hdg { font-size: 20px; font-weight: 700; }
+  #compass::after { content: "▼"; display: block; font-size: 12px; color: #ffd27a; margin-top: -2px; }
+  #mission { position: absolute; top: 96px; left: 50%; transform: translateX(-50%); text-align: center; }
+  #mission .panel { display: inline-block; padding: 6px 16px; }
+  #mission-title { font-size: 15px; font-weight: 700; }
+  #mission-sub { font-size: 12px; opacity: .9; }
+  #attitude { position: absolute; left: 14px; bottom: 14px; width: 110px; height: 110px; border-radius: 50%; overflow: hidden; border: 2px solid rgba(255,255,255,.6); background: #274b63; }
+  #horizon { position: absolute; left: -25%; top: -25%; width: 150%; height: 150%; }
+  #horizon .sky { height: 50%; background: linear-gradient(#f7b267, #ffd9a0); }
+  #horizon .ground { height: 50%; background: linear-gradient(#6b7c4a, #4a5d33); }
+  #attitude::after { content: ""; position: absolute; left: 50%; top: 50%; width: 46px; height: 4px; margin: -2px 0 0 -23px; background: #ffd27a; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0,0,0,.4); }
+  #attitude-label { position: absolute; left: 14px; bottom: 130px; font-size: 10px; letter-spacing: .14em; opacity: .85; }
+  #toast { position: absolute; left: 50%; top: 38%; transform: translateX(-50%); font-size: 34px; font-weight: 800; color: #ffd27a; text-shadow: 0 2px 8px rgba(0,0,0,.8); opacity: 0; transition: opacity .25s; white-space: nowrap; }
+  #hint { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); font-size: 12px; opacity: .9; text-align: center; }
+  .overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(10, 18, 26, .62); color: #fff; pointer-events: auto; z-index: 5; }
+  .card { background: rgba(16, 34, 48, .92); border: 1px solid rgba(255,210,122,.5); border-radius: 16px; padding: 28px 34px; max-width: 560px; text-align: center; box-shadow: 0 12px 40px rgba(0,0,0,.5); }
+  .card h1 { margin: 0 0 4px; font-size: 42px; letter-spacing: .04em; color: #ffd27a; }
+  .card h2 { margin: 0 0 10px; font-size: 26px; color: #ffd27a; }
+  .card p { margin: 8px 0; font-size: 15px; line-height: 1.5; opacity: .95; }
+  .card .sub { font-size: 13px; opacity: .8; }
+  .btn { pointer-events: auto; cursor: pointer; display: inline-block; margin: 8px 5px 0; padding: 12px 22px; font-size: 16px; font-weight: 700; color: #1c2b39; background: #ffd27a; border: none; border-radius: 10px; }
+  .btn:hover { background: #ffcf5e; }
+  .btn.ghost { background: transparent; color: #ffd27a; border: 2px solid #ffd27a; }
+  .mission-grid { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+  .mission-btn { pointer-events: auto; cursor: pointer; width: 160px; padding: 14px 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,.35); background: rgba(255,255,255,.08); color: #fff; }
+  .mission-btn:hover { border-color: #ffd27a; background: rgba(255,210,122,.15); }
+  .mission-btn b { display: block; font-size: 16px; margin-bottom: 4px; color: #ffd27a; }
+  .mission-btn span { font-size: 12px; line-height: 1.35; display: block; opacity: .9; }
+  .hidden { display: none !important; }
+  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+</style>
+</head>
+<body>
+<canvas id="game" aria-label="Elang Senja: terbangkan pesawat Elang-1 melewati ring, mendarat di landasan, dan jaga bahan bakar"></canvas>
+<div id="hud" class="hidden">
+  <div id="hud-left">
+    <div class="panel"><div class="label">KECEPATAN</div><div class="value"><span id="hud-speed">0</span> <span class="unit">km/jam</span></div></div>
+    <div class="panel"><div class="label">KETINGGIAN</div><div class="value"><span id="hud-alt">0</span> <span class="unit">m</span></div></div>
+    <div class="panel"><div class="label">NAIK / TURUN</div><div class="value"><span id="hud-vs">0</span> <span class="unit">m/detik</span></div></div>
+  </div>
+  <div id="compass" class="panel">
+    <div id="compass-tape">N&nbsp;&nbsp;045&nbsp;&nbsp;E&nbsp;&nbsp;135&nbsp;&nbsp;S&nbsp;&nbsp;225&nbsp;&nbsp;W&nbsp;&nbsp;315</div>
+    <div id="compass-hdg">000°</div>
+  </div>
+  <div id="hud-right">
+    <div class="panel"><div class="label">SKOR</div><div class="value" id="hud-score">0</div></div>
+    <div class="panel"><div class="label">THROTTLE <span id="hud-throttle-pct">55%</span></div><div class="bar"><div id="throttle-fill"></div></div></div>
+    <div class="panel"><div class="label">BAHAN BAKAR <span id="hud-fuel-pct">100%</span></div><div class="bar"><div id="fuel-fill"></div></div></div>
+  </div>
+  <div id="mission"><div class="panel"><div id="mission-title">Ring Run</div><div id="mission-sub">Ring 0 / 8 · 00:00</div></div></div>
+  <div id="attitude-label">SIKAP TERBANG</div>
+  <div id="attitude"><div id="horizon"><div class="sky"></div><div class="ground"></div></div></div>
+  <div id="toast"></div>
+  <div id="hint">↑↓ pitch · ←→ belok · Shift/Ctrl throttle · Q/E rudder · P jeda · R ulang</div>
+</div>
+<div id="menu" class="overlay">
+  <div class="card">
+    <h1>ELANG SENJA</h1>
+    <p>Terbang di atas lembah Cibinong saat matahari terbenam. Terbanglah dengan mulus, hemat bahan bakar, dan selesaikan misimu.</p>
+    <p class="sub">Pesawat: <b>Elang-1</b> · Landasan: <b>09/27</b> · Cuaca: cerah, angin tenang</p>
+    <div class="mission-grid">
+      <div class="mission-btn" data-mission="ring"><b>🛩️ Ring Run</b><span>Terbang melewati 8 ring secepat mungkin. Setiap ring +100 poin.</span></div>
+      <div class="mission-btn" data-mission="landing"><b>🛬 Pendaratan</b><span>Mendarat di landasan 09/27 di bawah 170 km/jam, dengan lembut.</span></div>
+      <div class="mission-btn" data-mission="free"><b>🌅 Terbang Bebas</b><span>Jelajahi lembah, kumpulkan ring hijau untuk bahan bakar.</span></div>
+    </div>
+    <p class="sub">Kontrol: ↑↓ pitch · ←→ belok · Shift/Ctrl throttle · Q/E rudder · seret mouse juga bisa · P jeda · R ulang · klik speaker untuk suara</p>
+    <button class="btn" id="sound-btn">🔊 Suara: nyala</button>
+  </div>
+</div>
+<div id="end" class="overlay hidden">
+  <div class="card">
+    <h2 id="end-title">Mendarat!</h2>
+    <p id="end-reason"></p>
+    <p id="end-stats" class="sub"></p>
+    <button class="btn" id="again-btn">Terbang lagi (R)</button>
+    <button class="btn ghost" id="menu-btn">Pilih misi (M)</button>
+  </div>
+</div>
+<p id="status" role="status" aria-live="polite"></p>
+<script type="importmap">{"imports": {"three": "./vendor/three.module.min.js"}}</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
